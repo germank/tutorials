@@ -45,16 +45,24 @@ end
 if opt.type == 'cuda' then
    model:cuda()
    criterion:cuda()
+   trainData.data = trainData.data:cuda()
+   trainData.labels = trainData.labels:cuda()
+   testData.data = testData.data:cuda()
+   testData.labels = testData.labels:cuda()
 end
 
 ----------------------------------------------------------------------
 print '==> defining some tools'
 
 -- classes
-classes = {'1','2','3','4','5','6','7','8','9','0'}
+classes = 2
 
 -- This matrix records the current confusion across classes
-confusion = optim.ConfusionMatrix(classes)
+if opt.output_type ~= 'ratings' then
+    confusion = optim.ConfusionMatrix(classes)
+else
+    confusion = nil
+end
 
 -- Log results to files
 trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
@@ -124,6 +132,7 @@ function train()
    -- do one epoch
    print('==> doing epoch on training data:')
    print("==> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
+   local avg_loss = 0
    for t = 1,trainData:size(),opt.batchSize do
       -- disp progress
       xlua.progress(t, trainData:size())
@@ -166,12 +175,14 @@ function train()
                           model:backward(inputs[i], df_do)
 
                           -- update confusion
-                          confusion:add(output, targets[i])
+                          if confusion then confusion:add(output[{1}] > 0.5 and 2 or 1, targets[i][{1}]+1) end
                        end
 
                        -- normalize gradients and f(X)
                        gradParameters:div(#inputs)
+                       avg_loss = avg_loss + f
                        f = f/#inputs
+
 
                        -- return f and df/dX
                        return f,gradParameters
@@ -190,11 +201,14 @@ function train()
    time = time / trainData:size()
    print("\n==> time to learn 1 sample = " .. (time*1000) .. 'ms')
 
+   print('Average loss: ' .. avg_loss /trainData.size() )
    -- print confusion matrix
-   print(confusion)
+   if confusion then 
+       print(confusion)
 
-   -- update logger/plot
-   trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+       -- update logger/plot
+       trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+   end
    if opt.plot then
       trainLogger:style{['% mean class accuracy (train set)'] = '-'}
       trainLogger:plot()
@@ -207,6 +221,9 @@ function train()
    torch.save(filename, model)
 
    -- next epoch
-   confusion:zero()
+   if confusion then
+      confusion:zero()
+   end
+   avg_loss = 0
    epoch = epoch + 1
 end

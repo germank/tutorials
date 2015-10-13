@@ -26,6 +26,7 @@ function test()
    -- set model to evaluate mode (for modules that differ in training and testing, like Dropout)
    model:evaluate()
 
+   local avg_loss = 0
    -- test over test data
    print('==> testing on test set:')
    for t = 1,testData:size() do
@@ -40,7 +41,10 @@ function test()
 
       -- test sample
       local pred = model:forward(input)
-      confusion:add(pred, target)
+      avg_loss = avg_loss + criterion:forward(pred, target)
+      if confusion then
+          confusion:add(pred[{1}] > 0.5 and 2 or 1, target[{1}]+1)
+      end
    end
 
    -- timing
@@ -48,11 +52,18 @@ function test()
    time = time / testData:size()
    print("\n==> time to test 1 sample = " .. (time*1000) .. 'ms')
 
+   print('Average loss: ' .. avg_loss / (testData:size()))
    -- print confusion matrix
-   print(confusion)
+   if confusion then
+       print(confusion)
+       --local p = confusion.mat[2][2] / (confusion.mat[2][1] + confusion.mat[2][2])
+       --local r = confusion.mat[2][2] / (confusion.mat[1][2] + confusion.mat[1][2])
 
-   -- update log/plot
-   testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+       --print ('F1 score: ',2 * p * r / (p+r))
+
+       -- update log/plot
+       testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+   end
    if opt.plot then
       testLogger:style{['% mean class accuracy (test set)'] = '-'}
       testLogger:plot()
@@ -65,5 +76,7 @@ function test()
    end
    
    -- next iteration:
-   confusion:zero()
+   if confusion then
+      confusion:zero()
+   end
 end
