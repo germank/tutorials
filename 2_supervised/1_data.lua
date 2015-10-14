@@ -105,7 +105,7 @@ function format_data(ds, space, word_to_row)
         -- wrote a tutorial on slicing available in this same
         -- directory: A_slicing.lua)
         X[{i,{1,vector_size}}]:copy(w1v)
-        X[{i,{vector_size+1,2*vector_size}}]:copy(w1v)
+        X[{i,{vector_size+1,2*vector_size}}]:copy(w2v)
         -- copy the ratings to the output vector
         y[i] = entry[3]
     end
